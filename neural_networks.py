@@ -25,15 +25,15 @@ test_all  = all[p70:]
 train_data = train_all[:,:-1]
 train_labels = train_all[:,-1:]
 
-test_data = train_all[:,:-1]
-test_labels = train_all[:,-1:]
+test_data = test_all[:,:-1]
+test_labels = test_all[:,-1:]
 
 # conversion de données en tensor
-train_X = torch.tensor(train_data).float().to('cuda:0')
-train_y = torch.tensor(train_labels).float().to('cuda:0')
-test_X  = torch.tensor(test_data).float().to('cuda:0')
-test_y  = torch.tensor(test_labels).float().to('cuda:0')
-result_X = torch.tensor(result_data).float().to('cuda:0')
+train_X = torch.tensor(train_data).float().to('cuda')
+train_y = torch.tensor(train_labels).float().to('cuda')
+test_X  = torch.tensor(test_data).float().to('cuda')
+test_y  = torch.tensor(test_labels).float().to('cuda')
+result_X = torch.tensor(result_data).float().to('cuda')
 
 d = train_data.shape[1]
 
@@ -70,7 +70,7 @@ def error_rate(labels, preds):
     return torch.sum(faux) / float(len_all)
 
 # création du modele
-modele = Modele(d).to('cuda:0')
+modele = Modele(d).to('cuda')
 
 # critère de Loss
 criterion = torch.nn.BCELoss()
@@ -93,17 +93,17 @@ for epoch in range(100000000):
         pred_test   = prediction(f_test)
         error_test  = error_rate(pred_test, test_y)
 
-        if error_test.item() < min:
-            min = error_test.item()
-            mint = error_train.item()
 
         print('epoch: ', epoch, 'loss: ', loss.item(), 'error_train', error_train.item(), 'error_test', error_test.item(), 'min', min, 'mint', mint)
 
-        if (round(error_test.item(), 3) <= 0.003 and round(error_train.item(), 3) <= 0.003):
+        if error_test.item() < min:
+            min = error_test.item()
+            mint = error_train.item()
+        # if (round(error_test.item(), 3) <= 0.003 and round(error_train.item(), 3) <= 0.003):
             f_result      = modele(result_X)
             pred_result   = prediction(f_result)
             np.savetxt('bank_test_results.csv', pred_result.to('cpu').detach().numpy())
-            break
+            # break
 
     optimizer.zero_grad()
     loss.backward()

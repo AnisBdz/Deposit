@@ -7,6 +7,7 @@ import re
 from time import time
 from os import path, mkdir, remove
 from shutil import rmtree
+from tqdm import tqdm
 
 # charger les données nécessaires pour l'entrainement des modèles
 # en prenant des échantillon aléatoires
@@ -52,6 +53,10 @@ def save_results(results, method):
 
     return name
 
+# barre de progression
+def progress_bar(l):
+    return tqdm(l, leave=False, dynamic_ncols=True, )
+
 # tester le bon fonctionnement des méthodes
 class TestUtils(unittest.TestCase):
 
@@ -95,6 +100,10 @@ class TestUtils(unittest.TestCase):
         finally:
             if path.exists(folder):
                 rmtree(folder)
+
+    def test_progress_bar(self):
+        for i in progress_bar(range(1000)):
+            pass
 
 # créer les dossier s'ils n'existent pas
 if not path.exists('out'):

@@ -4,10 +4,12 @@ import pandas
 import numpy
 import unittest
 import re
-from time import time
+from time import time, sleep
 from os import path, mkdir, remove
 from shutil import rmtree
 from tqdm import tqdm
+
+numpy.random.seed(100000)
 
 # charger les données nécessaires pour l'entrainement des modèles
 # en prenant des échantillon aléatoires
@@ -19,15 +21,26 @@ def load_data(size):
 
     # chargement des données
     data   = pandas.get_dummies(pandas.read_csv('data/bank_train_data.csv')).values
-    labels = pandas.read_csv('data/bank_train_labels.csv').values
+    labels = pandas.read_csv('data/bank_train_labels.csv').values.astype('int')
 
     # mélange des données
     all = numpy.concatenate((data, labels), axis = 1)
     numpy.random.shuffle(all)
 
+    labels = all[:,-1]
+
+    has_one  = labels == 1
+    has_zero = labels == 0
+
+    with_ones  = all[has_one]
+    with_zeros = all[has_zero]
+
+    train_size = int(train_size / 2)
+    test_size  = int(test_size / 2)
+
     # extrait des données d'entrainemnt et de test
-    train = all[:train_size]
-    test  = all[train_size : train_size + test_size]
+    train = numpy.concatenate((with_ones[:train_size], with_zeros[:train_size]))
+    test  = numpy.concatenate((with_ones[train_size : train_size + test_size], with_zeros[train_size : train_size + test_size]))
 
     X_train = train[:,:-1]
     y_train = train[:,-1:]
@@ -39,7 +52,8 @@ def load_data(size):
 
 # charger les données nécessaires pour générer les résultats finales
 def load_test_data():
-    return pandas.get_dummies(pandas.read_csv('data/bank_test_data.csv')).values
+    data   = pandas.get_dummies(pandas.read_csv('data/bank_test_data.csv')).values
+    return data
 
 # sauvgarder les résultats
 def save_results(results, method):
@@ -55,7 +69,7 @@ def save_results(results, method):
 
 # barre de progression
 def progress_bar(l):
-    return tqdm(l, leave=False, dynamic_ncols=True, )
+    return tqdm(l, leave=False, dynamic_ncols=True)
 
 # tester le bon fonctionnement des méthodes
 class TestUtils(unittest.TestCase):

@@ -1,63 +1,56 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+import utils
 import torch
 import pandas as pd
 import numpy as np
 
-# chargement les données en dataframe
-size = 5000
+# parameters
+# nombre d'echantillons
+size = (5000, 1002)
 
-result_data = pd.get_dummies(pd.read_csv('data/bank_test_data.csv')).values
-data   = pd.get_dummies(pd.read_csv('data/bank_train_data.csv')).values
+# charger les données nécessaires
+X_train, y_train, X_test, y_test = utils.load_data(size)
+X_final= utils.load_test_data()
 
-labels = pd.read_csv('data/bank_train_labels.csv').values
+d = X_train.shape[1]
 
-all = np.concatenate((data, labels), axis = 1)
-np.random.shuffle(all)
+# convert into tensors
+X_train = torch.tensor(X_train).float()
+y_train = torch.tensor(y_train).float()
+X_test  = torch.tensor(X_test).float()
+y_test  = torch.tensor(y_test).float()
 
-all = all[:size,:]
-result_data = result_data[:,:]
+X_final = torch.tensor(X_final).float()
 
-p70 = int(data.shape[0]*0.7)
-train_all = all[:p70]
-test_all  = all[p70:]
-
-train_data = train_all[:,:-1]
-train_labels = train_all[:,-1:]
-
-test_data = test_all[:,:-1]
-test_labels = test_all[:,-1:]
-
-# conversion de données en tensor
-train_X = torch.tensor(train_data).float().to('cuda')
-train_y = torch.tensor(train_labels).float().to('cuda')
-test_X  = torch.tensor(test_data).float().to('cuda')
-test_y  = torch.tensor(test_labels).float().to('cuda')
-result_X = torch.tensor(result_data).float().to('cuda')
-
-d = train_data.shape[1]
+# move to cuda if available
+if torch.cuda.is_available():
+    X_train = X_train.to('cuda')
+    y_train = y_train.to('cuda')
+    X_test  = X_test.to('cuda')
+    y_test  = y_test.to('cuda')
 
 # définition du modèle
 class Modele(torch.nn.Module):
     def __init__(self, d):
         super(Modele, self).__init__()
 
-        _2d = d * 2
-        _3d = d * 3
+        n1 = d
+        n2 = int(d/2)
+        n3 = int(d/3)
 
-        self.l1 = torch.nn.Linear(d,  _2d)
-        self.l2 = torch.nn.Linear(_2d, _3d)
-        self.l3 = torch.nn.Linear(_3d, _2d)
-        self.l4 = torch.nn.Linear(_2d, 1)
+
+        self.l1 = torch.nn.Linear(n1, n2)
+        self.l2 = torch.nn.Linear(n2, n3)
+        self.l3 = torch.nn.Linear(n3, 1)
 
         self.sigmoid = torch.nn.Sigmoid()
 
     def forward(self, x):
-        out1   = self.sigmoid(self.l1(x))
-        out2   = self.sigmoid(self.l2(out1))
-        out3   = self.sigmoid(self.l3(out2))
-        pred_y = self.sigmoid(self.l4(out3))
-        return pred_y
+        out1 = self.sigmoid(self.l1(x))
+        out2 = self.sigmoid(self.l2(out1))
+        out3 = self.sigmoid(self.l3(out2))
+        return out3
 
 # prediction
 def prediction(f):
@@ -70,7 +63,11 @@ def error_rate(labels, preds):
     return torch.sum(faux) / float(len_all)
 
 # création du modele
-modele = Modele(d).to('cuda')
+modele = Modele(d)
+
+# move to cuda if available
+if torch.cuda.is_available():
+    modele.to('cuda')
 
 # critère de Loss
 criterion = torch.nn.BCELoss()
@@ -78,35 +75,26 @@ criterion = torch.nn.BCELoss()
 # optimizer
 optimizer = torch.optim.SGD(modele.parameters(), lr=0.01)
 
-# entrainemnt
-min = 1
-mint = 1
-for epoch in range(100000000):
-    f_train = modele(train_X)
-    loss = criterion(f_train, train_y)
+
+for epoch in range(8000):
+    f_train = modele(X_train)
+    loss = criterion(f_train, y_train)
 
     if epoch % 100 == 0:
-        pred_train  = prediction(f_train)
-        error_train = error_rate(pred_train, train_y)
+        pred_train = prediction(f_train)
+        error_train = error_rate(pred_train, y_train)
 
-        f_test      = modele(test_X)
+        f_test      = modele(X_test)
         pred_test   = prediction(f_test)
-        error_test  = error_rate(pred_test, test_y)
+        error_test  = error_rate(pred_test, y_test)
 
-
-        print('epoch: ', epoch, 'loss: ', loss.item(), 'error_train', error_train.item(), 'error_test', error_test.item(), 'min', min, 'mint', mint)
-
-        if error_test.item() < min:
-            min = error_test.item()
-            mint = error_train.item()
-        # if (round(error_test.item(), 3) <= 0.003 and round(error_train.item(), 3) <= 0.003):
-            f_result      = modele(result_X)
-            pred_result   = prediction(f_result)
-            np.savetxt('bank_test_results.csv', pred_result.to('cpu').detach().numpy())
-            # break
+        print('epoch: ', epoch, 'loss: ', loss.item(), 'error_train', error_train.item(), 'error_test', error_test.item())
 
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
 
-# 0.0021715527400374413 mint 0.0021715527400374413
+f      = modele(X_final)
+pred   = prediction(f)
+
+utils.save_results(pred.to('cpu').detach(), 'nn')
